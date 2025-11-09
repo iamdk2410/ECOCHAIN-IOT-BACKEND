@@ -1,49 +1,60 @@
+// server.js
 import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import bodyParser from "body-parser";
 import cors from "cors";
 
 dotenv.config();
 
 const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
-// Connect to MongoDB Atlas
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+// ✅ MongoDB Connection
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-const SensorData = mongoose.model("SensorData", new mongoose.Schema({
-  co2: Number,
+// ✅ Sensor Data Schema
+const sensorSchema = new mongoose.Schema({
   temperature: Number,
   humidity: Number,
   pressure: Number,
   light: Number,
-  time: String,
-  date: String,
+  co2: Number,
   timestamp: { type: Date, default: Date.now },
-}));
+});
 
-// POST route to receive data from ESP32
-app.post("/api/data", async (req, res) => {
+const SensorData = mongoose.model("SensorData", sensorSchema);
+
+// ✅ POST Endpoint for ESP32
+app.post("/api/upload", async (req, res) => {
   try {
-    const data = new SensorData(req.body);
-    await data.save();
-    console.log("✅ Data saved:", req.body);
-    res.status(200).json({ success: true });
+    const { temperature, humidity, pressure, light, co2 } = req.body;
+    const newData = new SensorData({ temperature, humidity, pressure, light, co2 });
+    await newData.save();
+
+    console.log("📩 Data received:", req.body);
+    res.status(200).json({ message: "✅ Data saved successfully" });
   } catch (err) {
-    console.error("❌ Error:", err);
+    console.error("❌ Error saving data:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET route to see all data
+// ✅ GET Endpoint to View Data (for debugging)
 app.get("/api/data", async (req, res) => {
-  const data = await SensorData.find().sort({ timestamp: -1 });
-  res.json(data);
+  try {
+    const data = await SensorData.find().sort({ timestamp: -1 }).limit(10);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.listen(3000, () => console.log("🌍 Server running on port 3000"));
+// ✅ Start Server
+app.listen(PORT, () => console.log(`🌍 Server running on port ${PORT}`));
