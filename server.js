@@ -29,6 +29,7 @@ const outdoorSchema = new mongoose.Schema({
   pressure: Number,
   light: Number,
   co2: { type: Number, required: true },
+  // FIX: Changed 'type Date' to 'type: Date'
   timestamp: { type: Date, default: Date.now },
 });
 const OutdoorData = mongoose.model("OutdoorData", outdoorSchema);
@@ -36,7 +37,8 @@ const OutdoorData = mongoose.model("OutdoorData", outdoorSchema);
 // --- 2. INDOOR MODEL (ESP8266: CO2 Only) ---
 const indoorSchema = new mongoose.Schema({
   co2: { type: Number, required: true },
-  timestamp: { type Date, default: Date.now },
+  // FIX: Changed 'type Date' to 'type: Date'
+  timestamp: { type: Date, default: Date.now },
 });
 const IndoorData = mongoose.model("IndoorData", indoorSchema);
 
