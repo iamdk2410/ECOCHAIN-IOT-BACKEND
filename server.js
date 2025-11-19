@@ -3,6 +3,8 @@ import express from "express";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 import cors from "cors";
+// IMPORTANT: We will remove express.json() and parse manually in the route
+// to bypass the strict parser that returns 400.
 
 dotenv.config();
 
@@ -12,7 +14,7 @@ const MISSING_VALUE = -99999; // Define the fallback value for missing sensors
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+// app.use(express.json()); // <--- REMOVED THIS LINE
 
 // ✅ MongoDB Connection
 mongoose
@@ -38,15 +40,39 @@ const indoorSchema = new mongoose.Schema({
 });
 const IndoorData = mongoose.model("IndoorData", indoorSchema);
 
+// Helper function to read raw body from request stream
+function readRawBody(req) {
+    return new Promise((resolve, reject) => {
+        let body = '';
+        req.on('data', chunk => {
+            body += chunk.toString();
+        });
+        req.on('end', () => {
+            resolve(body);
+        });
+        req.on('error', reject);
+    });
+}
+
+
 // --- POST Endpoint for ESP32 (Outdoor) ---
+// This route now uses manual body parsing
 app.post("/api/upload", async (req, res) => {
   try {
-    // Expected fields for the Outdoor model
-    let { temperature, humidity, pressure, light, co2 } = req.body;
-    
-    // Log the received body for debugging
-    console.log("🐛 DEBUG Outdoor Body Received:", req.body);
+    const rawBody = await readRawBody(req);
+    console.log("🐛 DEBUG Outdoor Raw Body Received:", rawBody);
 
+    let parsedBody;
+    try {
+        parsedBody = JSON.parse(rawBody);
+    } catch (e) {
+        console.error("❌ Error parsing Outdoor JSON:", e.message);
+        return res.status(400).json({ error: "Bad Request: Malformed JSON payload received." });
+    }
+
+    // Expected fields for the Outdoor model
+    let { temperature, humidity, pressure, light, co2 } = parsedBody;
+    
     // --- FIX: Apply -99999 fallback for all expected outdoor fields ---
     co2 = (co2 === undefined || co2 === null) ? MISSING_VALUE : Number(co2);
     temperature = (temperature === undefined || temperature === null) ? MISSING_VALUE : Number(temperature);
@@ -77,14 +103,30 @@ app.post("/api/upload", async (req, res) => {
   }
 });
 
+
 // --- NEW POST Endpoint for ESP8266 (Indoor) ---
+// This route now uses manual body parsing
 app.post("/api/upload/indoor", async (req, res) => {
   try {
-    // Expected field for the Indoor model
-    let { co2 } = req.body;
+    const rawBody = await readRawBody(req);
     
-    // Log the received body for debugging
-    console.log("🐛 DEBUG Indoor Body Received:", req.body);
+    // CRITICAL DEBUGGING LINE: Log the raw body received!
+    console.log("🐛 DEBUG Indoor Raw Body Received:", rawBody);
+    
+    let parsedBody;
+    try {
+        // Manually parse the body
+        // The trim() call is crucial here, as it removes hidden whitespace/control characters 
+        // that may be appended by the ESP8266 library.
+        parsedBody = JSON.parse(rawBody.trim());
+    } catch (e) {
+        console.error("❌ Error parsing Indoor JSON:", e.message);
+        // This response body is vital for you to see what the server received
+        return res.status(400).send(`Bad Request: Malformed JSON payload received. Raw content: "${rawBody.replace(/\r?\n|\r/g, "\\n").trim()}"`);
+    }
+
+    // Expected field for the Indoor model
+    let { co2 } = parsedBody;
     
     // --- FIX: Apply -99999 fallback for the required CO2 field ---
     co2 = (co2 === undefined || co2 === null) ? MISSING_VALUE : Number(co2);
