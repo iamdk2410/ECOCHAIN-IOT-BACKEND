@@ -25,24 +25,27 @@ const outdoorSchema = new mongoose.Schema({
   humidity: Number,
   pressure: Number,
   light: Number,
-  co2: Number,
+  co2: { type: Number, required: true }, // CO2 is required for this model
   timestamp: { type: Date, default: Date.now },
 });
 const OutdoorData = mongoose.model("OutdoorData", outdoorSchema);
 
 // --- 2. INDOOR MODEL (ESP8266: CO2 Only) ---
 const indoorSchema = new mongoose.Schema({
-  co2: Number,
+  co2: { type: Number, required: true }, // CO2 is required for this model
   timestamp: { type: Date, default: Date.now },
 });
 const IndoorData = mongoose.model("IndoorData", indoorSchema);
 
 // --- POST Endpoint for ESP32 (Outdoor) ---
-// Uses the existing /api/upload endpoint
 app.post("/api/upload", async (req, res) => {
   try {
-    // Expects all fields from ESP32
     const { temperature, humidity, pressure, light, co2 } = req.body;
+    
+    // **FIX: Explicit validation for required fields**
+    if (co2 === undefined || co2 === null) {
+        return res.status(400).json({ error: "Bad Request: 'co2' field is required for Outdoor upload." });
+    }
     
     // Save to the dedicated OutdoorData model
     const newData = new OutdoorData({ temperature, humidity, pressure, light, co2 });
@@ -57,11 +60,14 @@ app.post("/api/upload", async (req, res) => {
 });
 
 // --- NEW POST Endpoint for ESP8266 (Indoor) ---
-// The ESP8266 must now target this new endpoint
 app.post("/api/upload/indoor", async (req, res) => {
   try {
-    // Expects only CO2 from ESP8266
     const { co2 } = req.body;
+    
+    // **FIX: Explicit validation for required field**
+    if (co2 === undefined || co2 === null) {
+        return res.status(400).json({ error: "Bad Request: 'co2' field is required for Indoor upload." });
+    }
     
     // Save to the dedicated IndoorData model
     const newData = new IndoorData({ co2 });
@@ -76,7 +82,6 @@ app.post("/api/upload/indoor", async (req, res) => {
 });
 
 // ✅ GET Endpoint to View Latest Data (for Live Dashboard)
-// Returns the single latest reading from BOTH collections
 app.get("/api/data/latest", async (req, res) => {
   try {
     const latestOutdoor = await OutdoorData.findOne().sort({ timestamp: -1 });
