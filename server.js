@@ -7,75 +7,76 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// --------------------- DATABASE CONNECTION ---------------------
-
-// ✅ Your MongoDB Atlas URL
+// --------------------- MONGO ATLAS CONNECTION ---------------------
 const MONGO_URL = "mongodb+srv://IOT-ECO:3vTb7J31w9qH9Fy0@ecochain.cmxatdi.mongodb.net/iot_data?retryWrites=true&w=majority";
 
 mongoose.connect(MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
+    useNewUrlParser: true,
+    useUnifiedTopology: true
 })
 .then(() => console.log("MongoDB Atlas Connected"))
 .catch(err => console.log("DB Error:", err));
 
 // --------------------- SCHEMA ---------------------
 const SensorSchema = new mongoose.Schema({
-  device: String,   // esp8266 / esp32
-  co2: Number,
-  time: String,     // RTC time as string ("17:09:39")
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
+    device: String,      // esp8266 or esp32
+    location: String,    // indoor or outdoor
+    co2: Number,
+    time: String,        // RTC time
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
 const Sensor = mongoose.model("Sensor", SensorSchema);
 
 // --------------------- ROUTES ---------------------
 
-// POST from ESP8266
+// ESP8266 → INDOOR
 app.post("/esp8266", async (req, res) => {
-  try {
-    const { co2, time } = req.body;
+    try {
+        const { co2, time } = req.body;
 
-    const entry = new Sensor({
-      device: "esp8266",
-      co2,
-      time
-    });
+        const entry = new Sensor({
+            device: "esp8266",
+            location: "indoor",
+            co2,
+            time
+        });
 
-    await entry.save();
-    res.status(200).json({ message: "ESP8266 data stored" });
+        await entry.save();
+        res.status(200).json({ message: "Indoor (ESP8266) data stored" });
 
-  } catch (err) {
-    res.status(400).json({ error: "Error saving ESP8266 data" });
-  }
+    } catch (err) {
+        res.status(400).json({ error: "Error saving ESP8266 data" });
+    }
 });
 
-// POST from ESP32
+// ESP32 → OUTDOOR
 app.post("/esp32", async (req, res) => {
-  try {
-    const { co2, time } = req.body;
+    try {
+        const { co2, time } = req.body;
 
-    const entry = new Sensor({
-      device: "esp32",
-      co2,
-      time
-    });
+        const entry = new Sensor({
+            device: "esp32",
+            location: "outdoor",
+            co2,
+            time
+        });
 
-    await entry.save();
-    res.status(200).json({ message: "ESP32 data stored" });
+        await entry.save();
+        res.status(200).json({ message: "Outdoor (ESP32) data stored" });
 
-  } catch (err) {
-    res.status(400).json({ error: "Error saving ESP32 data" });
-  }
+    } catch (err) {
+        res.status(400).json({ error: "Error saving ESP32 data" });
+    }
 });
 
-// GET all sensor data
+// Get ALL data
 app.get("/all", async (req, res) => {
-  const all = await Sensor.find().sort({ createdAt: -1 });
-  res.json(all);
+    const all = await Sensor.find().sort({ createdAt: -1 });
+    res.json(all);
 });
 
 // --------------------- START SERVER ---------------------
