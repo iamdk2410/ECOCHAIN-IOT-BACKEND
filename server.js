@@ -1,75 +1,85 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const bodyParser = require("body-parser");
 const cors = require("cors");
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());   // replaces body-parser
+app.use(express.urlencoded({ extended: true }));
 
 // --------------------- DATABASE CONNECTION ---------------------
-mongoose.connect("mongodb://localhost:27017/iot_data", {
+
+// ⛔ REPLACE THIS WITH YOUR ATLAS CONNECTION STRING  
+// Example:
+// const MONGO_URL = "mongodb+srv://username:password@cluster0.mongodb.net/iot_data?retryWrites=true&w=majority";
+const MONGO_URL = "mongodb+srv://IOT-ECO:3vTb7J31w9qH9Fy0@ecochain.cmxatdi.mongodb.net/?appName=ECOCHAIN";
+
+mongoose.connect(MONGO_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true
-}).then(() => console.log("MongoDB Connected"))
-  .catch(err => console.log("DB Error:", err));
+})
+.then(() => console.log("MongoDB Atlas Connected"))
+.catch(err => console.log("DB Error:", err));
 
 // --------------------- SCHEMA ---------------------
 const SensorSchema = new mongoose.Schema({
-    device: String,      // esp8266 OR esp32
+    device: String,         // esp8266 or esp32
     co2: Number,
-    timestamp: String
+    time: String,           // "17:01:35"
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
 const Sensor = mongoose.model("Sensor", SensorSchema);
 
 // --------------------- ROUTES ---------------------
 
-// ESP8266 route
+// ESP8266 → POST /esp8266
 app.post("/esp8266", async (req, res) => {
     try {
-        const { co2, timestamp } = req.body;
+        const { co2, time } = req.body;
 
         const entry = new Sensor({
             device: "esp8266",
             co2,
-            timestamp
+            time
         });
 
         await entry.save();
+        res.status(200).json({ message: "ESP8266 data stored" });
 
-        res.status(200).send("ESP8266 data stored");
-    } catch (error) {
-        res.status(400).send("Error saving data");
+    } catch (err) {
+        res.status(400).json({ error: "Error saving ESP8266 data" });
     }
 });
 
-// ESP32 route
+// ESP32 → POST /esp32
 app.post("/esp32", async (req, res) => {
     try {
-        const { co2, timestamp } = req.body;
+        const { co2, time } = req.body;
 
         const entry = new Sensor({
             device: "esp32",
             co2,
-            timestamp
+            time
         });
 
         await entry.save();
+        res.status(200).json({ message: "ESP32 data stored" });
 
-        res.status(200).send("ESP32 data stored");
-    } catch (error) {
-        res.status(400).send("Error saving data");
+    } catch (err) {
+        res.status(400).json({ error: "Error saving ESP32 data" });
     }
 });
 
-// Get all stored data
+// Get ALL data
 app.get("/all", async (req, res) => {
-    const all = await Sensor.find();
+    const all = await Sensor.find().sort({ createdAt: -1 });
     res.json(all);
 });
 
 // --------------------- START SERVER ---------------------
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
