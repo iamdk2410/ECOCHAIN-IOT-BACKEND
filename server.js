@@ -14,6 +14,7 @@ app.use(cors());
 app.use(express.json());
 
 // ✅ MongoDB Connection
+// Note: Ensure MONGO_URI is set in your environment variables (e.g., .env file)
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
@@ -26,16 +27,23 @@ const sensorSchema = new mongoose.Schema({
   pressure: Number,
   light: Number,
   co2: Number,
+  // Add an identifier to distinguish between ESP32 and ESP8266, 
+  // although the ESP32 provides all fields and ESP8266 provides only CO2.
+  deviceId: { type: String, required: false },
   timestamp: { type: Date, default: Date.now },
 });
 
 const SensorData = mongoose.model("SensorData", sensorSchema);
 
-// ✅ POST Endpoint for ESP32
+// ✅ POST Endpoint for ESP Devices
+// The ESP8266 is only sending 'co2', while the ESP32 sends all.
 app.post("/api/upload", async (req, res) => {
   try {
-    const { temperature, humidity, pressure, light, co2 } = req.body;
-    const newData = new SensorData({ temperature, humidity, pressure, light, co2 });
+    // Extract fields. Mongoose will automatically handle missing fields (like temperature for ESP8266).
+    const { temperature, humidity, pressure, light, co2, deviceId } = req.body;
+    
+    // Create new data document
+    const newData = new SensorData({ temperature, humidity, pressure, light, co2, deviceId });
     await newData.save();
 
     console.log("📩 Data received:", req.body);
@@ -46,10 +54,12 @@ app.post("/api/upload", async (req, res) => {
   }
 });
 
-// ✅ GET Endpoint to View Data (for debugging)
+// ✅ GET Endpoint to View Data (for dashboard)
+// Returns the latest 10 records for charting and display
 app.get("/api/data", async (req, res) => {
   try {
-    const data = await SensorData.find().sort({ timestamp: -1 }).limit(10);
+    // Sort by timestamp descending (-1) to get the newest first
+    const data = await SensorData.find().sort({ timestamp: -1 }).limit(20); // Increase limit for better charting
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
