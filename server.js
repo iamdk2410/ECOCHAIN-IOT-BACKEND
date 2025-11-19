@@ -8,6 +8,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const MISSING_VALUE = -99999; // Define the fallback value for missing sensors
 
 // Middleware
 app.use(cors());
@@ -25,14 +26,14 @@ const outdoorSchema = new mongoose.Schema({
   humidity: Number,
   pressure: Number,
   light: Number,
-  co2: { type: Number, required: true }, // CO2 is required for this model
+  co2: { type: Number, required: true },
   timestamp: { type: Date, default: Date.now },
 });
 const OutdoorData = mongoose.model("OutdoorData", outdoorSchema);
 
 // --- 2. INDOOR MODEL (ESP8266: CO2 Only) ---
 const indoorSchema = new mongoose.Schema({
-  co2: { type: Number, required: true }, // CO2 is required for this model
+  co2: { type: Number, required: true },
   timestamp: { type: Date, default: Date.now },
 });
 const IndoorData = mongoose.model("IndoorData", indoorSchema);
@@ -40,18 +41,35 @@ const IndoorData = mongoose.model("IndoorData", indoorSchema);
 // --- POST Endpoint for ESP32 (Outdoor) ---
 app.post("/api/upload", async (req, res) => {
   try {
-    const { temperature, humidity, pressure, light, co2 } = req.body;
+    // Expected fields for the Outdoor model
+    let { temperature, humidity, pressure, light, co2 } = req.body;
     
-    // **FIX: Explicit validation for required fields**
-    if (co2 === undefined || co2 === null) {
-        return res.status(400).json({ error: "Bad Request: 'co2' field is required for Outdoor upload." });
+    // Log the received body for debugging
+    console.log("🐛 DEBUG Outdoor Body Received:", req.body);
+
+    // --- FIX: Apply -99999 fallback for all expected outdoor fields ---
+    co2 = (co2 === undefined || co2 === null) ? MISSING_VALUE : Number(co2);
+    temperature = (temperature === undefined || temperature === null) ? MISSING_VALUE : Number(temperature);
+    humidity = (humidity === undefined || humidity === null) ? MISSING_VALUE : Number(humidity);
+    pressure = (pressure === undefined || pressure === null) ? MISSING_VALUE : Number(pressure);
+    light = (light === undefined || light === null) ? MISSING_VALUE : Number(light);
+    
+    // Check if the mandatory CO2 field is still invalid (e.g., NaN after conversion)
+    if (isNaN(co2)) {
+        return res.status(400).json({ error: "Bad Request: 'co2' must be a valid number." });
     }
-    
+
     // Save to the dedicated OutdoorData model
-    const newData = new OutdoorData({ temperature, humidity, pressure, light, co2 });
+    const newData = new OutdoorData({ 
+        temperature, 
+        humidity, 
+        pressure, 
+        light, 
+        co2 
+    });
     await newData.save();
 
-    console.log("📩 Outdoor Data received:", req.body);
+    console.log("📩 Outdoor Data saved successfully:", newData);
     res.status(200).json({ message: "✅ Outdoor Data saved successfully" });
   } catch (err) {
     console.error("❌ Error saving Outdoor data:", err);
@@ -62,18 +80,25 @@ app.post("/api/upload", async (req, res) => {
 // --- NEW POST Endpoint for ESP8266 (Indoor) ---
 app.post("/api/upload/indoor", async (req, res) => {
   try {
-    const { co2 } = req.body;
+    // Expected field for the Indoor model
+    let { co2 } = req.body;
     
-    // **FIX: Explicit validation for required field**
-    if (co2 === undefined || co2 === null) {
-        return res.status(400).json({ error: "Bad Request: 'co2' field is required for Indoor upload." });
+    // Log the received body for debugging
+    console.log("🐛 DEBUG Indoor Body Received:", req.body);
+    
+    // --- FIX: Apply -99999 fallback for the required CO2 field ---
+    co2 = (co2 === undefined || co2 === null) ? MISSING_VALUE : Number(co2);
+    
+    // Check if the CO2 field is invalid (e.g., NaN after conversion)
+    if (isNaN(co2)) {
+        return res.status(400).json({ error: "Bad Request: 'co2' must be a valid number." });
     }
     
     // Save to the dedicated IndoorData model
     const newData = new IndoorData({ co2 });
     await newData.save();
 
-    console.log("📩 Indoor Data received:", req.body);
+    console.log("📩 Indoor Data saved successfully:", newData);
     res.status(200).json({ message: "✅ Indoor Data saved successfully" });
   } catch (err) {
     console.error("❌ Error saving Indoor data:", err);
@@ -105,9 +130,11 @@ app.get("/api/data/history", async (req, res) => {
     const outdoorHistory = await OutdoorData.find().sort({ timestamp: -1 }).limit(20);
     const indoorHistory = await IndoorData.find().sort({ timestamp: -1 }).limit(20);
     
-    // Combine both arrays and return them (frontend will handle sorting and display)
-    const combinedHistory = [...outdoorHistory.map(d => ({ ...d._doc, model: 'outdoor' })), 
-                             ...indoorHistory.map(d => ({ ...d._doc, model: 'indoor' }))];
+    // Attach the model identifier before sending
+    const combinedHistory = [
+        ...outdoorHistory.map(d => ({ ...d._doc, model: 'outdoor' })), 
+        ...indoorHistory.map(d => ({ ...d._doc, model: 'indoor' }))
+    ];
                              
     res.json(combinedHistory);
   } catch (err) {
