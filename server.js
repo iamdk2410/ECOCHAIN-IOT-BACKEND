@@ -19,15 +19,18 @@ mongoose.connect(MONGO_URL, {
 
 // --------------------- SCHEMA ---------------------
 const SensorSchema = new mongoose.Schema({
-    device: String,      // esp8266 or esp32
-    location: String,    // indoor or outdoor
+    device: String,       // esp8266 or esp32
+    location: String,     // indoor or outdoor
     co2: Number,
     temperature: Number,
     humidity: Number,
     pressure: Number,
     light: Number,
-    time: String,        // RTC time
-    createdAt: { type: Date, default: Date.now }
+    time: String,         // RTC time
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
 });
 
 const Sensor = mongoose.model("Sensor", SensorSchema);
