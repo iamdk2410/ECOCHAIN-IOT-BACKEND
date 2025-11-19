@@ -22,11 +22,12 @@ const SensorSchema = new mongoose.Schema({
     device: String,      // esp8266 or esp32
     location: String,    // indoor or outdoor
     co2: Number,
+    temperature: Number,
+    humidity: Number,
+    pressure: Number,
+    light: Number,
     time: String,        // RTC time
-    createdAt: {
-        type: Date,
-        default: Date.now
-    }
+    createdAt: { type: Date, default: Date.now }
 });
 
 const Sensor = mongoose.model("Sensor", SensorSchema);
@@ -56,12 +57,16 @@ app.post("/esp8266", async (req, res) => {
 // ESP32 → OUTDOOR
 app.post("/esp32", async (req, res) => {
     try {
-        const { co2, time } = req.body;
+        const { co2, time, temperature, humidity, pressure, light } = req.body;
 
         const entry = new Sensor({
             device: "esp32",
             location: "outdoor",
             co2,
+            temperature,
+            humidity,
+            pressure,
+            light,
             time
         });
 
