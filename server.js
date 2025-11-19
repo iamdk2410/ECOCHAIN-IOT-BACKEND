@@ -36,7 +36,7 @@ const OutdoorData = mongoose.model("OutdoorData", outdoorSchema);
 // --- 2. INDOOR MODEL (ESP8266: CO2 Only) ---
 const indoorSchema = new mongoose.Schema({
   co2: { type: Number, required: true },
-  timestamp: { type: Date, default: Date.now },
+  timestamp: { type Date, default: Date.now },
 });
 const IndoorData = mongoose.model("IndoorData", indoorSchema);
 
@@ -67,7 +67,9 @@ app.post("/api/upload", async (req, res) => {
         parsedBody = JSON.parse(rawBody);
     } catch (e) {
         console.error("❌ Error parsing Outdoor JSON:", e.message);
-        return res.status(400).json({ error: "Bad Request: Malformed JSON payload received." });
+        // CRITICAL DEBUG RESPONSE: Expose hidden characters
+        const cleanBody = rawBody.replace(/\u0000/g, '[NULL]').replace(/\r?\n|\r/g, '[NEWLINE]').trim();
+        return res.status(400).send(`Bad Request: Malformed JSON payload received. Raw content: "${cleanBody}"`);
     }
 
     // Expected fields for the Outdoor model
@@ -121,8 +123,9 @@ app.post("/api/upload/indoor", async (req, res) => {
         parsedBody = JSON.parse(rawBody.trim());
     } catch (e) {
         console.error("❌ Error parsing Indoor JSON:", e.message);
-        // This response body is vital for you to see what the server received
-        return res.status(400).send(`Bad Request: Malformed JSON payload received. Raw content: "${rawBody.replace(/\r?\n|\r/g, "\\n").trim()}"`);
+        // CRITICAL DEBUG RESPONSE: Expose hidden characters like null terminator (\u0000)
+        const cleanBody = rawBody.replace(/\u0000/g, '[NULL]').replace(/\r?\n|\r/g, '[NEWLINE]').trim();
+        return res.status(400).send(`Bad Request: Malformed JSON payload received. Raw content: "${cleanBody}"`);
     }
 
     // Expected field for the Indoor model
