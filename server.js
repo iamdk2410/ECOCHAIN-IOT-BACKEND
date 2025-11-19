@@ -66,7 +66,9 @@ app.post("/api/upload", async (req, res) => {
 
     let parsedBody;
     try {
-        parsedBody = JSON.parse(rawBody);
+        // Remove null terminators explicitly for maximum compatibility
+        const cleanRawBody = rawBody.replace(/\u0000/g, '').trim(); 
+        parsedBody = JSON.parse(cleanRawBody);
     } catch (e) {
         console.error("❌ Error parsing Outdoor JSON:", e.message);
         // CRITICAL DEBUG RESPONSE: Expose hidden characters
@@ -119,10 +121,9 @@ app.post("/api/upload/indoor", async (req, res) => {
     
     let parsedBody;
     try {
-        // Manually parse the body
-        // The trim() call is crucial here, as it removes hidden whitespace/control characters 
-        // that may be appended by the ESP8266 library.
-        parsedBody = JSON.parse(rawBody.trim());
+        // --- FINAL FIX: Explicitly remove null terminators (\u0000) and trim whitespace ---
+        const cleanRawBody = rawBody.replace(/\u0000/g, '').trim();
+        parsedBody = JSON.parse(cleanRawBody);
     } catch (e) {
         console.error("❌ Error parsing Indoor JSON:", e.message);
         // CRITICAL DEBUG RESPONSE: Expose hidden characters like null terminator (\u0000)
